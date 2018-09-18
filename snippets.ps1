@@ -27,3 +27,12 @@ foreach ($folder in $folders)
     }
 
 ###
+# Check SCCM for machines that are enabled in AD, but don't have clients.
+# Run from SCCM drive
+$enabledWS = get-adcomputer -Filter 'Enabled -eq $true' -properties * | where {$_.operatingsystem -like "*Windows 10*" -or $_.operatingsystem -like "*Windows 7*"}
+#Filter it down further to machines that have been in contact within 90 days if needed.
+$enabledWS = $enabledWS | where {$_.lastLogonDate -gt $(get-date).adddays(-90)}
+$output = @()
+$enabledWS | % {$objDevice = Get-CMDevice -Name $_.name; if (-not $objDevice.Client){$output += $objDevice}}
+$output | % {Add-CMDeviceCollectionDirectMembershipRule -CollectionId COL12345 -ResourceId $_.resourceID}
+###

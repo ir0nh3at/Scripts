@@ -36,3 +36,16 @@ $output = @()
 $enabledWS | % {$objDevice = Get-CMDevice -Name $_.name; if (-not $objDevice.Client){$output += $objDevice}}
 $output | % {Add-CMDeviceCollectionDirectMembershipRule -CollectionId COL12345 -ResourceId $_.resourceID}
 ###
+
+# Check for Windows 10 or Windows 7 machines without Bitlocker keys escrowed in AD.
+
+$output = @()
+$enabledWS = get-adcomputer -Filter 'Enabled -eq $true' -properties * | where {$_.operatingsystem -like "*Windows 10*" -or $_.operatingsystem -like "*Windows 7*"}
+foreach ($ws in $enabledWS)
+    {
+        if (-not $(Get-adobject -Filter 'ObjectClass -eq "msFVE-RecoveryInformation"' -SearchBase $ws.DistinguishedName))
+            {$output += $ws}
+    }
+
+###
+

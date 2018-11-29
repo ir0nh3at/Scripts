@@ -22,8 +22,7 @@ function Reset-SophosHealthService {
 
 param(
     [string]$ComputerName="localhost",
-    [Parameter(Mandatory=$true)]
-    [string]$TamperProtectionPassword
+    [string]$TamperProtectionPassword="NONE"
 )
 
 $testConnection = Test-Connection $computername -Count 1

@@ -71,7 +71,7 @@ function Check-FileVersionGreater {
     
     foreach ($file in $filePaths)
         {
-            $fileVersion = $(gci $file).VersionInfo
+            $fileVersion = $(gci $file -ErrorAction SilentlyContinue).VersionInfo
             if ($fileVersion.ProductMajorPart -lt $MinProdMajor){return $false}
                 elseif ($fileVersion.ProductMinorPart -lt $MinProdMinor){return $false}
         }
@@ -86,7 +86,7 @@ $cleanSuccess = Check-FileVersionGreater -FilePaths $cleanPathsToCheck -MinProdM
 $healthSuccess = Check-FileVersionGreater -FilePaths $healthPathsToCheck -MinProdMajor $healthMinProdMajor -MinProdMinor $healthMinProdMinor
 
 #Kind of weird way to do the service check, but it should work.
-$servicesPresent = $servicesToCheck | % {Get-Service $_}
+$servicesPresent = $servicesToCheck | % {Get-Service $_ -ErrorAction SilentlyContinue}
 $serviceSuccess = $servicesPresent.count -eq $servicesToCheck.Count
 
 if ($avSuccess -and $auSuccess -and $mcsSuccess -and $cleanSuccess -and $healthSuccess -and $serviceSuccess)

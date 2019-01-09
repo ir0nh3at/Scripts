@@ -82,7 +82,7 @@ Write-Output "Status from SEDcli: $result"
 Write-Output "All systems go.  Attempting uninstall. https://www.youtube.com/watch?v=PhLgUv6sTFI"
 
 Write-Output "Running uninstaller."
-Start-Process -FilePath $uninstallerPath -wait -RedirectStandardOutput $uninstallCliOutput
+Start-Process -FilePath $uninstallerPath -wait -RedirectStandardOutput $uninstallCliOutput -WindowStyle Hidden
 
 Write-Output "`nUninstaller complete."
 Write-Output "Validating Uninstall..."

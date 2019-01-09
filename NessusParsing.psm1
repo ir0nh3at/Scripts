@@ -133,6 +133,7 @@ function Get-NessusReportItem {
 }
 
 
+
 function Create-SCCMRemediationCollectionsFromNessus {
     <#
         .DESCRIPTION
@@ -185,13 +186,7 @@ function Create-SCCMRemediationCollectionsFromNessus {
         [String[]]$FilePath
     
     )
-    
-    #$FilePath = "u:\temp\Columbus.Nessus"
-    #$TopFindingsToInclude = 5
-    #$minSeverityToInclude = 3
-    #"SIT:\DeviceCollection\Security\Remediation Collections"
-    #$limitingCollectionName = "All Windows Workstation or Professional Systems"
-    
+        
     #Test for SCCM Module, bail if missing.
     if (!$(Get-Module ConfigurationManager)){Write-Error "Configuration Manager module not loaded.  Load it before running this function." ; return -1}
     
@@ -201,56 +196,59 @@ function Create-SCCMRemediationCollectionsFromNessus {
     $formattedDate = get-date -format "MM/dd/yy HH:mm:ss" #This is used in the comment field of the new collection.
     Push-Location $SiteCode":" #You have to be in the SCCM drive to run this stuff (technically, I know there's a workaround, but let's keep it simple)
     
-    $items = Get-NessusReportItem -FilePath $FilePath | where {$_.severity -ge $minSeverityToInclude} #Populate array with all items from the .nessus report.
-    $topPlugins = ($items | Sort-Object PluginId).pluginId | Group-Object | Sort-Object -Descending Count | select -First $TopFindingsToInclude #Collects the top X findings.
+    foreach ($file in $filePath)
+    {
+        $items = Get-NessusReportItem -FilePath $File | where {$_.severity -ge $minSeverityToInclude} #Populate array with all items from the .nessus report.
+        $topPlugins = ($items | Sort-Object PluginId).pluginId | Group-Object | Sort-Object -Descending Count | select -First $TopFindingsToInclude #Collects the top X findings.
     
-    $createItems = @()
+        $createItems = @()
     
-    #This loop collects one example of a finding by each of the top plugins.
-    foreach ($plugin in $topPlugins)
-        {
-            $createItems += $items | where {$_.pluginID -eq $plugin.Name} | select -First 1
-        }
+        #This loop collects one example of a finding by each of the top plugins.
+        foreach ($plugin in $topPlugins)
+            {
+                $createItems += $items | where {$_.pluginID -eq $plugin.Name} | select -First 1
+            }
     
-    #From each of those examples, we'll create the device collections.  The naming is straight-forward enough that we shouldn't have any duplicate collections
-    #even after multiple runs.
+        #From each of those examples, we'll create the device collections.  The naming is straight-forward enough that we shouldn't have any duplicate collections
+        #even after multiple runs.
     
-    foreach ($item in $createItems)
-        {
-            $CollectionName = $item.pluginId + " - " + $item.risk_factor + " - " + $item.pluginName
-            $objCollection = @()
-            $objCollection = Get-CMCollection -Name $CollectionName
-            
-            #If the collection doesn't already exist, create it.
-            if (!$objCollection)
-                {
-                    #If you're running into SQL errors creating the collections, this is the first place I'd look.  You'll note that I trimmed
-                    #the Microsoft ID and Nessus' See Also URLs way back to avoid it.
-                    $comment = "Auto-generated $formattedDate",
-                                "Synopsis: $($item.synopsis)",
-                                "Microsoft ID: $($item.msft.split(' ') | select -first 2)",
-                                "See also: $($item.see_also.split([environment]::newline) | select -first 2)",
-                                "Severity: $($item.severity) / $($item.risk_factor)"
-                    $comment = $comment | out-string
-    
-                    Write-Host "Creating $CollectionName"
-                    New-CMDeviceCollection -Name $CollectionName -Comment $comment -LimitingCollectionName $limitingCollectionName -RefreshType Continuous
-                    $objCollection = Get-CMCollection -Name $CollectionName
-                    if ($CollectionFolderPath){Move-CMObject -FolderPath $CollectionFolderPath -InputObject $objCollection} #If an alternate path has been specified, move the collection.
-                }
-            
-            #Recheck for collection existence and write error if it's missing.  This will let us skip trying to add members to a non-existent collection.
-            $objCollection = Get-CMCollection -Name $CollectionName
-            if (!$objCollection)
-                {
-                    Write-Host "ERROR: $CollectionName not found!  Continuing..."
-                    continue
-                }
-                else
+        foreach ($item in $createItems)
+            {
+                $CollectionName = $item.pluginId + " - " + $item.risk_factor + " - " + $item.pluginName
+                $objCollection = @()
+                $objCollection = Get-CMCollection -Name $CollectionName
+                
+                #If the collection doesn't already exist, create it.
+                if (!$objCollection)
                     {
-                        $vulnHosts = ($items | where {$_.pluginId -eq $item.pluginId}).hostname | where {$_ -like "*.$domainName"} | % {$_.split('.')[0]} #adds the part of the host before the "." to an array.
-                        $vulnHosts | % {Add-CMDeviceCollectionDirectMembershipRule -CollectionId $objCollection.CollectionId -ResourceId $(Get-CMDevice -Name $_).resourceId -erroraction SilentlyContinue} #adds each to the collection.
+                        #If you're running into SQL errors creating the collections, this is the first place I'd look.  You'll note that I trimmed
+                        #the Microsoft ID and Nessus' See Also URLs way back to avoid it.
+                        $comment = "Auto-generated $formattedDate",
+                                    "Synopsis: $($item.synopsis)",
+                                    "Microsoft ID: $($item.msft.split(' ') | select -first 2)",
+                                    "See also: $($item.see_also.split([environment]::newline) | select -first 2)",
+                                    "Severity: $($item.severity) / $($item.risk_factor)"
+                        $comment = $comment | out-string
+    
+                        Write-Host "Creating $CollectionName"
+                        New-CMDeviceCollection -Name $CollectionName -Comment $comment -LimitingCollectionName $limitingCollectionName -RefreshType Continuous
+                        $objCollection = Get-CMCollection -Name $CollectionName
+                        if ($CollectionFolderPath){Move-CMObject -FolderPath $CollectionFolderPath -InputObject $objCollection} #If an alternate path has been specified, move the collection.
                     }
+                
+                #Recheck for collection existence and write error if it's missing.  This will let us skip trying to add members to a non-existent collection.
+                $objCollection = Get-CMCollection -Name $CollectionName
+                if (!$objCollection)
+                    {
+                        Write-Host "ERROR: $CollectionName not found!  Continuing..."
+                        continue
+                    }
+                    else
+                        {
+                            $vulnHosts = ($items | where {$_.pluginId -eq $item.pluginId}).hostname | where {$_ -like "*.$domainName"} | % {$_.split('.')[0]} #adds the part of the host before the "." to an array.
+                            $vulnHosts | % {Add-CMDeviceCollectionDirectMembershipRule -CollectionId $objCollection.CollectionId -ResourceId $(Get-CMDevice -Name $_).resourceId -erroraction SilentlyContinue} #adds each to the collection.
+                        }
+            }
         }
-    Pop-Location #return to previous location.
-}
+        Pop-Location #return to previous location.
+    }

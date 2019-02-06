@@ -64,8 +64,8 @@ foreach ($file in $fileNames)
     {
         Write-Host "[$i/$($filenames.count)] Importing $file."
         $strContent = Get-Content $file
-        $headers = $strContent[0].split(',')
         $strContent = $strContent | Select -skip $SkipCount
+        $headers = $strContent[0].split(',')
         $output += ConvertFrom-Csv -InputObject $strContent -Header $headers
         $i++
     }

@@ -60,6 +60,7 @@ function Recover-SCCMapplicationContentFromDP {
 <#
     .DESCRIPTION
     Recovers lost application content easily from an SCCM deployment point.  No error checking implemented.  https://www.youtube.com/watch?v=-crgQGdpZR0
+    Needs work - currently doesn't handle content with subfolders.
     .PARAMETER https
     Specifies that https be used to connect to DP.
     .PARAMETER DistributionPoint
@@ -100,20 +101,24 @@ if ($https){$protocol = "https"}
 $contentIni = "\\" + $DistributionPoint + "\SCCMContentLib$\pkglib\" + $ContentId + ".ini"
 $applicationContent = Get-Content $contentIni
 $contentGuid = $applicationContent | where {$_ -like "Content_*"}
-$contentGuid = $contentGuid.substring(0,$contentGuid.length-1)
-$uri = $protocol + "://" + $DistributionPoint + "/SMS_DP_SMSPKG$/" + $contentGuid
-$body = Invoke-WebRequest $uri -CertificateThumbprint $CertificateThumbPrint
-$links = $body.links.innerHtml
+$contentGuids = $contentGuid.replace('=','')
 if (Test-Path $OutputDirectory\$ContentID)
-    {Write-Output "ERROR: $outputDirectory\$contentID already exists!" ; Return 9}
+        {Write-Output "ERROR: $outputDirectory\$contentID already exists!" ; Return 9}
 md $OutputDirectory\$ContentID
-foreach ($link in $links)
+foreach ($contentGuid in $contentGuids)
     {
-        $linkComponents = $link.split('/')
-        $outFileName = "$OutputDirectory\$ContentID\$($linkComponents[$linkComponents.length -1])"
-        #This is stupid, but the https site returns http links that don't work in some configs.
-        if ($https)
-            {$link = $link.replace('http','https')}
-        WRite-host $link
-        Invoke-WebRequest -Uri $link -OutFile $outFileName -CertificateThumbprint $CertificateThumbPrint}
+    $uri = $protocol + "://" + $DistributionPoint + "/SMS_DP_SMSPKG$/" + $contentGuid
+    $body = Invoke-WebRequest $uri -CertificateThumbprint $CertificateThumbPrint
+    $links = $body.links.innerHtml
+    
+    foreach ($link in $links)
+        {
+            $linkComponents = $link.split('/')
+            $outFileName = "$OutputDirectory\$ContentID\$($linkComponents[$linkComponents.length-1])"
+            #This is stupid, but the https site returns http links that don't work in some configs.
+            if ($https)
+                {$link = $link.replace('http','https')}
+            Write-host $link " => " $outFileName
+            Invoke-WebRequest -Uri $link -OutFile $outFileName -CertificateThumbprint $CertificateThumbPrint}
+    }
 }
